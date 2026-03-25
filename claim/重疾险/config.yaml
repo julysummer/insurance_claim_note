@@ -1,0 +1,41 @@
+# 重疾险理赔规则配置
+# 统一字段标准
+
+# ====== 基础信息 ======
+product_code: "product_critical_001"
+claim_type: "给付型"
+payment_period_type: "长期"
+payment_frequency: "年缴"
+reimbursement_category: []
+reimbursement_scope: []
+
+# ====== 默认参数 ======
+default:
+  # 等待期(天)
+  disease_waiting_period: 90
+  accident_waiting_period: 0
+
+  # 给付参数
+  coverage_amount: 100000      # 保额
+  annual_limit: 300000         # 年度限额(多次赔付)
+  max_claims: 1                 # 最高赔付次数
+
+  # 承保责任
+  covered_types:
+    - "critical_illness"
+
+# ====== 产品特定配置 ======
+products:
+  # 单次赔付重疾险
+  product_001:
+    coverage_amount: 100000
+    max_claims: 1
+
+  # 多次赔付重疾险
+  product_002:
+    coverage_amount: 100000
+    annual_limit: 300000
+    max_claims: 3
+    covered_types:
+      - "critical_illness"
+      - "minor_illness"

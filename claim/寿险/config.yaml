@@ -1,0 +1,39 @@
+# 寿险理赔规则配置
+# 统一字段标准
+
+# ====== 基础信息 ======
+product_code: "product_life_001"
+claim_type: "给付型"
+payment_period_type: "长期"
+payment_frequency: "年缴"
+reimbursement_category: []
+reimbursement_scope: []
+
+# ====== 默认参数 ======
+default:
+  # 等待期(天) - 寿险无等待期
+  disease_waiting_period: 0
+  accident_waiting_period: 0
+
+  # 给付参数
+  coverage_amount: 100000       # 保额
+
+  # 承保责任
+  covered_types:
+    - "death"
+    - "accidental_death"
+
+# ====== 产品特定配置 ======
+products:
+  # 定期寿险
+  product_001:
+    coverage_amount: 100000
+    covered_types:
+      - "death"
+
+  # 终身寿险
+  product_002:
+    coverage_amount: 500000
+    covered_types:
+      - "death"
+      - "accidental_death"

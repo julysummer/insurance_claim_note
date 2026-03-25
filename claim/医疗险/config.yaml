@@ -1,0 +1,58 @@
+# 医疗险理赔规则配置
+# 统一字段标准
+
+# ====== 基础信息 ======
+product_code: "product_medical_001"
+claim_type: "报销型"
+payment_period_type: "长期"
+payment_frequency: "年缴"
+reimbursement_category:
+  - "门诊"
+  - "住院"
+reimbursement_scope:
+  - "疾病"
+  - "意外"
+
+# ====== 默认参数 ======
+default:
+  # 等待期(天)
+  disease_waiting_period: 30
+  accident_waiting_period: 0
+
+  # 免赔额
+  deductible_type: "次免赔"
+  deductible: 100
+  cumulative_deductible: 0
+
+  # 赔付参数
+  coinsurance_rate: 0.80
+  annual_limit: 10000
+  single_limit: 5000
+
+  # 承保责任
+  covered_types:
+    - "outpatient"
+    - "hospitalization"
+
+# ====== 产品特定配置 ======
+products:
+  # 百万医疗险
+  product_001:
+    disease_waiting_period: 30
+    deductible_type: "年免赔"
+    deductible: 10000
+    coinsurance_rate: 1.0
+    annual_limit: 3000000
+    single_limit: 1000000
+    covered_types:
+      - "hospitalization"
+
+  # 门诊医疗险
+  product_002:
+    disease_waiting_period: 7
+    deductible: 50
+    coinsurance_rate: 0.90
+    annual_limit: 5000
+    single_limit: 2000
+    covered_types:
+      - "outpatient"

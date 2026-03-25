@@ -1,0 +1,57 @@
+# 意外险理赔规则配置
+# 统一字段标准
+
+# ====== 基础信息 ======
+product_code: "product_accident_001"
+claim_type: "报销型"
+payment_period_type: "短期"
+payment_frequency: "年缴"
+reimbursement_category:
+  - "门诊"
+  - "住院"
+reimbursement_scope:
+  - "意外"
+
+# ====== 默认参数 ======
+default:
+  # 等待期(天) - 意外无等待期
+  disease_waiting_period: 0
+  accident_waiting_period: 0
+
+  # 免赔额
+  deductible_type: "次免赔"
+  deductible: 100
+  cumulative_deductible: 0
+
+  # 赔付参数
+  coinsurance_rate: 0.80
+  annual_limit: 10000
+  single_limit: 5000
+
+  # 住院津贴
+  hospitalization_allowance: 50
+  hospitalization_days_limit: 180
+
+  # 承保责任
+  covered_types:
+    - "accidental_medical"
+    - "accidental_death"
+    - "accidental_disability"
+    - "hospitalization_allowance"
+
+# ====== 产品特定配置 ======
+products:
+  # 综合意外险
+  product_001:
+    deductible: 100
+    coinsurance_rate: 1.0
+    annual_limit: 50000
+    single_limit: 20000
+    hospitalization_allowance: 100
+
+  # 意外医疗险
+  product_002:
+    deductible: 100
+    coinsurance_rate: 0.80
+    annual_limit: 10000
+    single_limit: 5000
