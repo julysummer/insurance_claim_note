@@ -11,21 +11,29 @@
 | 理赔申请 | 3个 | accidentDate, reportDate 等 |
 | 条款配置 | 15+个 | 免赔额、等待期、赔付比例等 |
 
-### 1.2 字段一致性
+### 1.2 条款解析（从保险条款提取）
 
-| 分类 | 字段命名 | 中文说明 |
-|------|----------|----------|
-| 保单 | policyNumber | 保单号 |
-| 保单 | policyStartDate | 保单开始日期 |
-| 保单 | policyEndDate | 保单结束日期 |
-| 保单 | insuranceProductCode | 保险产品代码 |
-| 保单 | insuranceType | 保险险种 |
-| 发票 | totalAmount | 总金额 |
-| 发票 | ownPayAmount | 个人现金支付 |
-| 发票 | fundPayAmount | 医保统筹支付 |
-| 配置 | deductible | 免赔额金额 |
-| 配置 | coinsuranceRate | 赔付比例 |
-| 配置 | annualLimit | 年度限额 |
+| 条款字段 | 来源 | 用途 |
+|----------|------|------|
+| product_type | 条款.产品名称 | 区分百万/中端/小额/门诊医疗险 |
+| claim_type | 条款.理赔类型 | 给付型/报销型/津贴型 |
+| deductible_type | 条款.免赔额类型 | 累计/不累计/无免赔 |
+| disease_waiting_period | 条款.疾病等待期 | 天数 |
+| reimbursement_category | 条款.报销类别 | 门诊/住院/急诊 |
+
+### 1.3 可赔基数计算规则
+
+```
+险种判断（从条款product_name或claim_type）：
+  ├─ 百万医疗险 → 基数=个人现金支付，免赔1万/年
+  ├─ 中端医疗险 → 基数=个人现金支付或发票总额，0免赔
+  ├─ 小额医疗险 → 基数=个人现金支付或发票总额，0免赔
+  └─ 门诊医疗险 → 基数=个人现金支付或发票总额，0免赔，有日限
+
+医保判断（从发票isMedicalInsurance）：
+  ├─ 有医保("1") → 基数 = ownPayAmount（个人现金支付）
+  └─ 无医保("0") → 基数 = totalAmount（发票总金额）
+```
 
 ---
 
