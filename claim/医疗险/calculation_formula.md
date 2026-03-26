@@ -28,7 +28,7 @@
 | | accountPayAmount | 医保个人账户支付（商业险视同客户现金，**可赔**） |
 | | otherPayAmount | 其他途径已补偿金额（如其他商保、大病保险等） |
 | **免赔额** | deductible | 配置的免赔额度（支持年免赔/次免赔/分段免赔） |
-| | historyDeducted | 历史理赔已扣除的免赔额累计（用于年免赔） |
+| | history_deducted | 历史理赔已扣除的免赔额累计（用于年免赔） |
 | **比例** | coinsuranceRate | 赔付比例（根据医保结算身份、既往症等动态取值） |
 | **限额控制** | single/annualLimit | 单次/年度最高限额 |
 | | historyPaid | 年度历史已赔付累计金额 |
@@ -58,15 +58,6 @@ if (isMedicalInsurance == "1" 且 fundPayAmount > 0) {
 } else {
     结算身份 = "无医保或未以医保身份就诊"
 }
-```
-
-### 3.3 可赔基数计算
-
-```
-可赔基数（医保） = 发票总金额 - 医保统筹基金支付 - 其他途径已补偿
-可赔基数（自费） = 发票总金额 - 其他途径已补偿
-
-注意：不扣减医保个人账户账户(accountPayAmount)！
 ```
 
 ---
@@ -135,23 +126,11 @@ if (isMedicalInsurance == "1" 且 fundPayAmount > 0) {
     "挂号费": 500,
     "一般诊疗费": 1000,
     "其他费": 5000
-  },
-  "医院等级": {
-    "三级": 100000,
-    "二级": 50000,
-    "一级": 30000,
-    "未定级": 20000
-  },
-  "就诊类型": {
-    "门诊": 100000,
-    "住院": 200000
-  },
-  "医保结算": {
-    "是": 150000,
-    "否": 100000
   }
 }
 ```
+
+> 注：医院等级、就诊类型、医保结算属于案件级别的总体限额配置，详见第七节。
 
 ---
 
@@ -164,7 +143,7 @@ if (isMedicalInsurance == "1" 且 fundPayAmount > 0) {
 | 类型 | 计算公式 |
 |------|----------|
 | 次免赔 | 本次应扣免赔额 = config.deductible |
-| 年免赔 | 剩余待扣 = MAX(0, config.deductible - historyDeducted) |
+| 年免赔 | 剩余待扣 = MAX(0, config.deductible - history_deducted) |
 | | 本次应扣免赔额 = MIN(有效可赔基数, 剩余待扣) |
 | 分段免赔 | 根据 有效可赔基数 匹配 tiered_deductible 区间获取额度 |
 
@@ -272,7 +251,7 @@ if (isMedicalInsurance == "1" 且 fundPayAmount > 0) {
 实际经济损失 = totalAmount - fundPayAmount - otherPayAmount
 最终赔付 = MIN(限额后赔付, 实际经济损失)
 
-更新数据库：historyPaid += 最终赔付, historyDeducted += 本次应扣免赔额
+更新数据库：historyPaid += 最终赔付, history_deducted += 本次应扣免赔额
 ```
 
 ---
@@ -344,7 +323,7 @@ if (isMedicalInsurance == "1" 且 fundPayAmount > 0) {
 |------------------|--------------|--------------|
 | **医保个人账户** | 视同客户掏的现金，绝对不能当做医保报销减掉！ | `基数 = totalAmount - fundPayAmount` 不扣 accountPayAmount |
 | **计算先后顺序** | 如果先扣总免赔，再算明细限额，会导致客户亏钱。 | **必须先算明细级限额**，汇总成"有效基数"后，**再扣总免赔额**。 |
-| **多次理赔免赔额** | 第二次理赔不能再扣一万免赔额。 | 必须引入 `historyDeducted` 字段维护状态。 |
+| **多次理赔免赔额** | 第二次理赔不能再扣一万免赔额。 | 必须引入 `history_deducted` 字段维护状态。 |
 | **发票总额兜底** | 客户拿同一张发票去多家公司报销，总获赔不能超过自费。 | 最后一步必须执行 `MIN(计算值, 实际经济损失)`。 |
 
 ---
@@ -356,6 +335,6 @@ if (isMedicalInsurance == "1" 且 fundPayAmount > 0) {
 | 通用 | MIN(初步赔付, 单次/年度/分项限额, 补偿上限) | 全部可配置 |
 | 有医保 | 基数 = total - 医保统筹 - 其他补偿 | fundPayAmount可赔 |
 | 无医保 | 基数 = total - 其他补偿 | 无医保统筹扣减 |
-| 年免赔 | 本次扣 = MIN(基数, 免赔额-历史已扣) | historyDeducted |
+| 年免赔 | 本次扣 = MIN(基数, 免赔额-历史已扣) | history_deducted |
 | 既往症 | 比例 = MIN(基础比例, 既往症比例) | pre_history |
 | 补偿原则 | 最终 = MIN(计算值, 实际损失) | 兜底保护 |
