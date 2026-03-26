@@ -62,7 +62,29 @@
 
 ## 三、意外医疗计算
 
-### 3.1 除外责任拦截
+### 3.1 报销范围判断（与医疗险相同逻辑）
+
+意外医疗的可赔范围由条款中的 `reimbursement_category` 字段决定：
+
+```
+如果 (条款.reimbursement_category == "不限"):
+    可赔基数 = totalAmount - fundPayAmount - otherPayAmount
+            = accountPayAmount + ownPayAmount
+            （医保目录内外都赔）
+
+如果 (条款.reimbursement_category == "社保内"):
+    可赔基数 = accountPayAmount + ownPayAmount - selfpaymentCost
+            （仅赔医保目录内，需扣除个人自费）
+
+如果 (条款.reimbursement_category == "社保外"):
+    可赔基数 = totalAmount - fundPayAmount - 医保内部分
+            （仅赔医保目录外）
+
+如果 (条款.reimbursement_category == "不适用"):
+    可赔基数 = 0  （如津贴型产品）
+```
+
+### 3.2 除外责任拦截
 
 对每条明细进行过滤：
 
@@ -74,7 +96,7 @@
 }
 ```
 
-### 3.2 分项限额
+### 3.3 分项限额
 
 ```
 对经过除责过滤后的费用明细：
@@ -102,7 +124,7 @@
 }
 ```
 
-### 3.3 免赔额计算
+### 3.4 免赔额计算
 
 | 类型 | 计算公式 |
 |------|----------|

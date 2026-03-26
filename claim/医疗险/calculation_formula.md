@@ -37,7 +37,30 @@
 
 ## 三、基数定义与医保结算判断
 
-### 3.1 实际自费基数（补偿原则上限）
+### 3.1 报销范围判断（核心逻辑）
+
+商业医疗险的可赔范围由条款中的 `reimbursement_category` 字段决定：
+
+```
+如果 (条款.reimbursement_category == "不限"):
+    可赔基数 = totalAmount - fundPayAmount - otherPayAmount
+            = accountPayAmount + ownPayAmount
+            （医保目录内外都赔）
+
+如果 (条款.reimbursement_category == "社保内"):
+    可赔基数 = accountPayAmount + ownPayAmount - selfpaymentCost
+            （仅赔医保目录内，需扣除个人自费）
+            （selfpaymentCost = 个人自费 = 丙类费用）
+
+如果 (条款.reimbursement_category == "社保外"):
+    可赔基数 = totalAmount - fundPayAmount - 医保内部分
+            （仅赔医保目录外，通常需要从明细计算）
+
+如果 (条款.reimbursement_category == "不适用"):
+    可赔基数 = 0  （如津贴型产品，不适用此逻辑）
+```
+
+### 3.2 实际自费基数（补偿原则上限）
 
 商业医疗险遵循"补偿原则"，无论公式怎么算，最终赔的钱绝不能超过客户实际受到的经济损失。
 
@@ -47,7 +70,7 @@
 
 **注意：医保个人账户（医保卡扣款）属于个人财产，视同现金，不予扣减。**
 
-### 3.2 医保结算身份判断
+### 3.3 医保结算身份判断
 
 发票层级的判断，决定整体的**赔付比例**。
 
