@@ -35,9 +35,18 @@ default:
     - "hospitalization"
 
 # ====== 产品特定配置 ======
+# 按保障范围划分：
+# 1. 百万医疗险 - 住院为主，1万免赔，年度限额100万+
+# 2. 中端医疗险 - 门诊+住院，0免赔，特需国际部
+# 3. 小额医疗险 - 门诊+住院，0免赔，限额1-5万
+# 4. 门诊医疗险 - 仅门诊，0免赔
+
 products:
-  # 百万医疗险
+  # ====== 百万医疗险 ======
+  # 核心：保额高、免赔额高、仅住院
   product_001:
+    name: "百万医疗险"
+    description: "年度限额100万+，1万免赔，仅住院报销"
     disease_waiting_period: 30
     deductible_type: "年免赔"
     deductible: 10000
@@ -47,12 +56,48 @@ products:
     covered_types:
       - "hospitalization"
 
-  # 门诊医疗险
+  # ====== 中端医疗险 ======
+  # 核心：0免赔、门诊+住院、特需国际部
   product_002:
+    name: "中端医疗险"
+    description: "0免赔，门诊+住院，覆盖特需国际部"
+    disease_waiting_period: 30
+    deductible_type: "无"
+    deductible: 0
+    coinsurance_rate: 1.0
+    annual_limit: 2000000
+    single_limit: 500000
+    hospital_level: ["二级甲等", "三级甲等", "特需", "国际部"]
+    covered_types:
+      - "outpatient"
+      - "hospitalization"
+
+  # ====== 小额医疗险 ======
+  # 核心：0免赔、保额低、门诊+住院
+  product_003:
+    name: "小额医疗险"
+    description: "0免赔，门诊+住院，限额1-5万"
+    disease_waiting_period: 30
+    deductible_type: "无"
+    deductible: 0
+    coinsurance_rate: 1.0
+    annual_limit: 50000
+    single_limit: 10000
+    covered_types:
+      - "outpatient"
+      - "hospitalization"
+
+  # ====== 门诊医疗险 ======
+  # 核心：仅门诊、0免赔、日限额
+  product_004:
+    name: "门诊医疗险"
+    description: "仅门诊报销，0免赔，日限额"
     disease_waiting_period: 7
-    deductible: 50
-    coinsurance_rate: 0.90
-    annual_limit: 5000
-    single_limit: 2000
+    deductible_type: "无"
+    deductible: 0
+    coinsurance_rate: 1.0
+    annual_limit: 10000
+    single_limit: 1000
+    daily_limit: 500  # 日限额
     covered_types:
       - "outpatient"
