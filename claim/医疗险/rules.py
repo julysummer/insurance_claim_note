@@ -272,6 +272,12 @@ class MedicalClaimEngine:
         - 年度限额: policy.product_params.annualLimit
         - 年度已赔: claim_info.claimedThisYear
 
+        边界情况处理：
+        1. 个人现金支付为空时，使用发票总金额
+        2. 费用明细中有除责项目时，排除该部分
+        3. 部分项目有限额时，按项目分别计算
+        4. 分段免赔：不同额度区间适用不同免赔额
+
         Args:
             claim_info: 理赔申请信息
 
@@ -281,33 +287,122 @@ class MedicalClaimEngine:
         policy = claim_info.policy
         invoice = claim_info.invoice
         params = policy.product_params
+        calculation_steps = []
 
-        # 1. 确定可赔基数
-        # 有医保时使用个人现金支付，无医保时使用发票总金额
+        # ========== 1. 确定可赔基数 + 匹配责任类型 ==========
+        # 根据发票的医疗类别确定责任类型
+        medical_type = invoice.medical_type  # 1-门诊, 2-住院, 3-慢特病
+        coverage_map = {"1": "outpatient", "2": "hospitalization", "3": "special_clinic"}
+        claim_type = coverage_map.get(medical_type, "unknown")
+        covered = params.get("covered_types", [])
+
+        # 检查责任是否在保障范围内
+        if claim_type not in covered:
+            return 0, {"错误": f"责任类型{claim_type}不在保障范围内", "保障范围": covered}
+
+        # 根据责任类型确定计算参数
+        if claim_type == "outpatient":
+            # 门诊责任
+            base_source = "门诊"
+            daily_limit = params.get("daily_limit")  # 日限额
+            if daily_limit:
+                calculation_steps.append({"步骤": "门诊日限额", "值": daily_limit})
+        elif claim_type == "hospitalization":
+            # 住院责任（可能有年免赔）
+            base_source = "住院"
+        elif claim_type == "special_clinic":
+            # 特殊门诊（可能有限额）
+            base_source = "特殊门诊"
+
+        # 个人现金支付为空时使用发票总金额
         if invoice.is_medical_insurance == "1":
-            base_amount = invoice.own_pay_amount or 0
-            base_source = "invoice.ownPayAmount（个人现金支付）"
+            # 有医保：优先使用个人现金支付
+            base_amount = invoice.own_pay_amount
+            base_source = "invoice.ownPayAmount"
+            # 个人现金支付为0或None时，使用发票总金额
+            if not base_amount or base_amount <= 0:
+                base_amount = invoice.total_amount
+                base_source = "invoice.totalAmount (个人现金支付为空)"
         else:
+            # 无医保：使用发票总金额
             base_amount = invoice.total_amount
-            base_source = "invoice.totalAmount（发票总金额）"
+            base_source = "invoice.totalAmount（无医保）"
 
-        # 2. 扣除免赔额
-        # 从可赔基数中扣除免赔额，负数取0
+        calculation_steps.append({"步骤": "确定基数", "值": base_amount, "来源": base_source})
+
+        # ========== 2. 扣除除责项目 ==========
+        # 检查费用明细中的除外项目
+        excluded_amount = 0
+        excluded_items = []
+        if invoice.item_detail:
+            exclusions = params.get("exclusions", [])
+            for item in invoice.item_detail:
+                item_name = item.get("item_name", "")
+                item_amount = item.get("item_amount", 0)
+                is_excluded = False
+                for exc in exclusions:
+                    keywords = self.excluded_keywords.get(exc.get("type", ""), [])
+                    if any(kw in item_name for kw in keywords):
+                        is_excluded = True
+                        break
+                if is_excluded:
+                    excluded_amount += item_amount
+                    excluded_items.append(item_name)
+
+        # 可赔基数 = 总金额 - 除责金额
+        if excluded_amount > 0:
+            base_amount = max(0, base_amount - excluded_amount)
+            calculation_steps.append({"步骤": "扣除除责", "值": -excluded_amount, "项目": excluded_items})
+
+        # ========== 3. 扣除免赔额 ==========
+        # 分段免赔：不同额度区间适用不同免赔额
         deductible = params.get("deductible", 0)
-        after_deductible = max(0, base_amount - deductible)
+        deductible_type = params.get("deductible_type", "次免赔")
 
-        # 3. 计算初步赔付
-        # 扣除免赔额后的金额乘以赔付比例
+        if deductible_type == "分段免赔":
+            # 分段免赔逻辑
+            # 例如：0-1000元免赔100元，1000-5000元免赔200元，5000元以上免赔500元
+            tiered_deductible = params.get("tiered_deductible", [
+                {"min": 0, "max": 1000, "deductible": 100},
+                {"min": 1000, "max": 5000, "deductible": 200},
+                {"min": 5000, "max": float('inf'), "deductible": 500}
+            ])
+            for tier in tiered_deductible:
+                if tier["min"] <= base_amount < tier["max"]:
+                    deductible = tier["deductible"]
+                    break
+
+        after_deductible = max(0, base_amount - deductible)
+        calculation_steps.append({"步骤": "扣除免赔额", "免赔额": deductible, "免赔类型": deductible_type, "扣减后": after_deductible})
+
+        # ========== 4. 计算初步赔付 ==========
         coinsurance_rate = params.get("coinsurance_rate", 1.0)
         payment = after_deductible * coinsurance_rate
 
-        # 4. 检查单次限额
-        # 单次理赔最高赔付金额
+        calculation_steps.append({"步骤": "初步赔付", "公式": "扣减后×赔付比例", "值": payment})
+
+        # ========== 5. 检查项目限额 ==========
+        # 部分项目有限额（如特定药品、检查项目）
+        item_limits = params.get("item_limits", {})
+        item_deductions = 0
+        if invoice.item_detail and item_limits:
+            for item in invoice.item_detail:
+                item_name = item.get("item_name", "")
+                item_amount = item.get("item_amount", 0)
+                for limit_key, limit_value in item_limits.items():
+                    if limit_key in item_name:
+                        if item_amount > limit_value:
+                            item_deductions += (item_amount - limit_value)
+
+        if item_deductions > 0:
+            payment = max(0, payment - item_deductions)
+            calculation_steps.append({"步骤": "项目限额扣减", "值": item_deductions, "扣减后": payment})
+
+        # ========== 6. 检查单次限额 ==========
         single_limit = params.get("single_limit", float('inf'))
         payment = min(payment, single_limit)
 
-        # 5. 检查年度限额
-        # 年度累计最高赔付金额
+        # ========== 7. 检查年度限额 ==========
         annual_limit = params.get("annual_limit", float('inf'))
         remaining = annual_limit - claim_info.claimed_this_year
         payment = min(payment, remaining)
@@ -317,13 +412,17 @@ class MedicalClaimEngine:
 
         # 计算明细
         calculation = {
-            "公式": "MIN(初步赔付, 单次限额, 年度剩余限额)",
+            "公式": "MIN(初步赔付-项目限额, 单次限额, 年度剩余限额)",
             "初步赔付公式": "MAX(0, 可赔基数 - 免赔额) × 赔付比例",
             "可赔基数": base_amount,
             "可赔基数来源": base_source,
+            "除责扣减": excluded_amount,
+            "除责项目": excluded_items,
             "免赔额": deductible,
+            "免赔额类型": deductible_type,
             "免赔额来源": "policy.product_params.deductible",
             "扣减后": after_deductible,
+            "项目限额扣减": item_deductions,
             "赔付比例": coinsurance_rate,
             "赔付比例来源": "policy.product_params.coinsuranceRate",
             "初步赔付": after_deductible * coinsurance_rate,
@@ -334,7 +433,8 @@ class MedicalClaimEngine:
             "年度已赔": claim_info.claimed_this_year,
             "年度已赔来源": "claim_info.claimedThisYear",
             "年度剩余": remaining,
-            "最终赔付": payment
+            "最终赔付": payment,
+            "计算步骤": calculation_steps
         }
 
         return payment, calculation
